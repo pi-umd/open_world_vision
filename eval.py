@@ -80,6 +80,7 @@ def main():
             for img_idx, images in tqdm(test_loader):
                 images = images.cuda()
                 output = model(images)
+                # Adjust this according to your model
                 output = nn_func.softmax(output[0], 1)
                 img_idx_list.append(img_idx)
                 output_list.append(output)
