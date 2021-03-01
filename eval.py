@@ -9,18 +9,18 @@ import torchvision.transforms as transforms
 import torch.utils.data.distributed
 from tqdm import tqdm
 
-# Replace this with your data loader
+# Replace this with your data loader and edit the calls accordingly
 from data_loader import EvalDataset
 
 
-def get_arg_parser():
+def get_parser():
     """"Defines the command line arguments"""
     parser = argparse.ArgumentParser(description='Open World Vision')
     parser.add_argument('--input_file', required=True,
                         help='path to a .txt/.csv file containing paths of input images in first column of each row. '
                              '\',\' will be used as a delimiter if a csv is provided. In text format, each row should'
                              ' only contain the path of an image.')
-    parser.add_argument('--output_dir', required=True,
+    parser.add_argument('--out_dir', required=True,
                         help='directory to be used to save the results. We will save a \',\' separated csv which will'
                              ' be named by the next argument: <exp_name> ')
     parser.add_argument('--exp_name', required=True,
@@ -36,7 +36,7 @@ def get_arg_parser():
 
 
 def main():
-    parser = get_arg_parser()
+    parser = get_parser()
     args = parser.parse_args()
     if args.accimage:
         try:
@@ -90,8 +90,8 @@ def main():
             for i, img_idx in enumerate(img_idx_list):
                 line = [str(x) for x in output_list[i].tolist()]
                 lines.append(','.join([img_path_list[img_idx]] + line))
-            with open(os.path.join(args.output_dir, f'{args.exp_name}.csv'), 'w') as f:
-                f.writelines(lines)
+            with open(os.path.join(args.out_dir, f'{args.exp_name}.csv'), 'w') as f:
+                f.write('\n'.join(lines))
     except FileNotFoundError:
         print(f'Could not find the model file at {args.model_path}')
     except KeyError:

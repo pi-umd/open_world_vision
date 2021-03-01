@@ -1,7 +1,11 @@
 import os
 
+import pandas as pd
+import torchvision.datasets as datasets
 from PIL import Image
 from torch.utils import data
+
+IMG_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', '.webp')
 
 
 def image_loader(img_path, accimage=False):
@@ -52,3 +56,43 @@ class EvalDataset(data.Dataset):
         except Exception as e:
             print(f'Error loading image: {img_path}. Error: {e}')
         return None
+
+
+class ModifiedImageFolder(datasets.DatasetFolder):
+    """Basically provides additional functionality to save images which could not be loaded"""
+
+    def __init__(self, root, out_dir, transform=None, target_transform=None,
+                 loader=image_loader, is_valid_file=None, stage=None):
+        super(ModifiedImageFolder, self).__init__(root, loader, IMG_EXTENSIONS if is_valid_file is None else None,
+                                                  transform=transform,
+                                                  target_transform=target_transform,
+                                                  is_valid_file=is_valid_file)
+
+        self.error_files = list()
+        self.stage = stage
+        self.out_dir = out_dir
+
+    def __getitem__(self, index):
+        """Returns the datapoint (and its class information) at a particular index
+
+        Args:
+            index (int): Index of the data point in the dataset
+
+        Returns:
+            tuple: (sample, target) where target is class_index of the target class.
+        """
+        path, target = self.samples[index]
+
+        try:
+            sample = self.loader(path)
+        except:
+            self.error_files.append(path)
+            pd.DataFrame(self.error_files).to_csv(f'{self.out_dir}/error_files_{self.stage}.csv')
+            return self.__getitem__(index + 1)
+
+        if self.transform is not None:
+            sample = self.transform(sample)
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        return sample, target
