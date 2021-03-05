@@ -1,105 +1,99 @@
 import argparse
 import os
-import sys
 
-import torch
-import torch.nn.parallel
-import torch.nn.functional as nn_func
-import torchvision.transforms as transforms
-import torch.utils.data.distributed
-from tqdm import tqdm
-
-# Replace this with your data loader and edit the calls accordingly
-from data_loader import EvalDataset
+import numpy as np
+import pandas as pd
 
 
 def get_parser():
     """"Defines the command line arguments"""
     parser = argparse.ArgumentParser(description='Open World Vision')
-    parser.add_argument('--input_file', required=True,
-                        help='path to a .txt/.csv file containing paths of input images in first column of each row. '
-                             '\',\' will be used as a delimiter if a csv is provided. In text format, each row should'
-                             ' only contain the path of an image.')
-    parser.add_argument('--out_dir', required=True,
-                        help='directory to be used to save the results. We will save a \',\' separated csv which will'
-                             ' be named by the next argument: <exp_name> ')
-    parser.add_argument('--exp_name', required=True,
-                        help='unique name for this run of the evaluation')
-    parser.add_argument('--model_path', required=True,
-                        help='path to model file')
-    parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
-                        help='number of data loading workers (default: 4)')
-    parser.add_argument('-b', '--batch-size', default=32, type=int)
-    parser.add_argument('--accimage', action='store_true',
-                        help='use if accimage module is available on the system and you want to use it')
+    parser.add_argument('--pred_file', required=True, type=str,
+                        help='path to csv file containing predicted labels. First column should contain image name and'
+                             'rest of the columns should contain predicted probabilities for each of the class_id')
+    parser.add_argument('--gt_file', required=True, type=str,
+                        help='path to csv file containing ground-truth labels. First column should contain image name'
+                             ' and second column should contain the ground truth class_id')
+    parser.add_argument('--k_vals', default=1, nargs='+', type=int,
+                        help='space separated list of k(s) in top-k evaluation')
     return parser
+
+
+def check_class_validity(p_class, gt_class):
+    """
+    Check the validity of the inputs for image classification. Raises an exception if invalid.
+
+    Args:
+        p_class (np.array): Nx(K+1) matrix with each row corresponding to K+1 class probabilities for each sample
+        gt_class (np.array) : Nx1 vector with ground-truth class for each sample
+    """
+    if p_class.shape[0] != gt_class.shape[0]:
+        raise Exception(
+            'Number of predicted samples not equal to number of ground-truth samples!')
+    if np.any(p_class < 0) or np.any(p_class > 1):
+        raise Exception(
+            'Predicted class probabilities should be between 0 and 1!')
+    if p_class.ndim != 2:
+        raise Exception(
+            'Predicted probabilities must be a 2D matrix but is an array of dimension {}!'.format(p_class.ndim))
+    if np.max(gt_class) >= p_class.shape[1] or np.min(gt_class < 0):
+        raise Exception(
+            'Ground-truth class labels must lie in the range [0-{}]!'.format(p_class.shape[1]))
+    return
+
+
+def top_k_accuracy(p_class, gt_class, k):
+    """
+    The method computes top-K accuracy.
+
+    Args:
+        p_class: Nx(K+1) matrix with each row corresponding to K+1 class probabilities for each sample
+        gt_class: Nx1 compute vector with ground-truth class for each sample
+        k: 'k' used in top-K accuracy
+    Returns:
+        top-K accuracy
+    """
+    check_class_validity(p_class, gt_class)
+    p_class = np.argsort(-p_class)[:, :k]
+    gt_class = gt_class[:, np.newaxis]
+    check_zero = p_class - gt_class
+    correct = np.sum(np.any(check_zero == 0, axis=1).astype(int))
+    return round(float(correct)/p_class.shape[0], 5)
+
+
+def evaluate(pred_file, gt_file, k=(1, 5,)):
+    """Evaluates the performance as top-k accuracy
+
+    Args:
+        pred_file (str): path to csv file containing pred labels
+            Column 0 - file name
+            Column 1..n - probability of data point being class 'n'
+        gt_file (str): path to csv file containing gt labels for each data point.
+            Column 0 - file name
+            Column 1 - class_id
+        k (tuple of int): 'k' in 'top-k' accuracy. 'k' top probabilities will be used for evaluation
+    """
+    assert os.path.isfile(pred_file), f'File not found: {pred_file}'
+    assert os.path.isfile(gt_file), f'File not found: {gt_file}'
+
+    gt_df = pd.read_csv(gt_file)
+    pred_df = pd.read_csv(pred_file, header=None, index_col=None)
+    # Comparing the full file paths as of now, we might want to revisit this based on how we name data points later
+    assert len(gt_df) == len(pred_df), 'GT and Prediction files have different number of records'
+    assert gt_df.iloc[:, 0].tolist() == pred_df.iloc[:, 0].tolist(), 'GT and Prediction files do not have the data' \
+                                                                     ' points in same order'
+    gt_class = np.asarray(gt_df.iloc[:, 1].tolist())
+    pred_df.drop(pred_df.columns[0], inplace=True, axis=1)
+    pred_class = pred_df.to_numpy()
+    for k_val in k:
+        accuracy = top_k_accuracy(pred_class, gt_class, k_val)
+        print(f'The top-{k_val} accuracy is {accuracy}')
 
 
 def main():
     parser = get_parser()
     args = parser.parse_args()
-    if args.accimage:
-        try:
-            import accimage
-        except ModuleNotFoundError:
-            print('You opted for using accimage but we are unable to import it. Process will be terminated.')
-            sys.exit()
-
-    try:
-        checkpoint = torch.load(args.model_path)
-        model = checkpoint['model']
-        model = torch.nn.DataParallel(model).cuda()
-        model.load_state_dict(checkpoint['state_dict'])
-
-        # switch to evaluate mode
-        model.eval()
-
-        with torch.no_grad():
-            # Replace this with your data-loader
-            test_set = EvalDataset(
-                data_file=args.input_file,
-                accimage=args.accimage,
-                transform=transforms.Compose([
-                    transforms.Resize(256),
-                    transforms.CenterCrop(224),
-                    transforms.ToTensor(),
-                    transforms.Normalize(mean=[0.5, 0.5, 0.5],
-                                         std=[0.5, 0.5, 0.5]),
-                ]))
-
-            img_path_list = test_set.data_list
-            test_loader = torch.utils.data.DataLoader(
-                test_set,
-                batch_size=args.batch_size,
-                shuffle=False,
-                num_workers=args.workers,
-                pin_memory=True)
-
-            img_idx_list = list()
-            output_list = list()
-            for img_idx, images in tqdm(test_loader):
-                images = images.cuda()
-                output = model(images)
-                # Adjust this according to your model
-                output = nn_func.softmax(output[0], 1)
-                img_idx_list.append(img_idx)
-                output_list.append(output)
-            img_idx_list = torch.cat(img_idx_list, 0)
-            output_list = torch.cat(output_list, 0)
-
-            lines = list()
-            for i, img_idx in enumerate(img_idx_list):
-                line = [str(x) for x in output_list[i].tolist()]
-                lines.append(','.join([img_path_list[img_idx]] + line))
-            with open(os.path.join(args.out_dir, f'{args.exp_name}.csv'), 'w') as f:
-                f.write('\n'.join(lines))
-    except FileNotFoundError:
-        print(f'Could not find the model file at {args.model_path}')
-    except KeyError:
-        print(f'Saved model does not have expected format. We expect the checkpoint to have \'model\' and '
-              f'\'state_dict\' keys')
-    except Exception as e:
-        print(e)
+    evaluate(args.pred_file, args.gt_file, tuple(map(int, args.k_vals)))
 
 
 if __name__ == '__main__':

@@ -27,10 +27,11 @@ def image_loader(img_path, accimage=False):
 class EvalDataset(data.Dataset):
     """Characterizes a dataset for PyTorch"""
 
-    def __init__(self, data_file, accimage=False, transform=None):
+    def __init__(self, data_file, accimage=False, transform=None, header=True):
         """Initialization"""
         self.transform = transform
         self.accimage = accimage
+        self.header = header
         with open(data_file) as f:
             lines = f.readlines()
             file_name, ext = os.path.splitext(data_file)
@@ -38,6 +39,8 @@ class EvalDataset(data.Dataset):
                 self.data_list = [line.strip('\n') for line in lines]
             else:
                 self.data_list = [line.strip('\n').split(',')[0] for line in lines]
+                if header:
+                    self.data_list = self.data_list[1:]
 
     def __len__(self):
         """Returns the total number of samples"""
