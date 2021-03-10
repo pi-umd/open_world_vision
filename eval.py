@@ -42,7 +42,7 @@ def check_class_validity(p_class, gt_class):
     return
 
 
-def top_k_accuracy(p_class, gt_class, k):
+def top_k_accuracy(p_class, gt_class, k, mode='all'):
     """
     The method computes top-K accuracy.
 
@@ -53,12 +53,25 @@ def top_k_accuracy(p_class, gt_class, k):
     Returns:
         top-K accuracy
     """
+    def calc_accuracy(pred, gt, k):
+        pred = np.argsort(-pred)[:, :k]
+        gt = gt[:, np.newaxis]
+        check_zero = pred - gt
+        correct = np.sum(np.any(check_zero == 0, axis=1).astype(int))
+        return round(float(correct)/pred.shape[0], 5)
+
     check_class_validity(p_class, gt_class)
-    p_class = np.argsort(-p_class)[:, :k]
-    gt_class = gt_class[:, np.newaxis]
-    check_zero = p_class - gt_class
-    correct = np.sum(np.any(check_zero == 0, axis=1).astype(int))
-    return round(float(correct)/p_class.shape[0], 5)
+    accuracy = dict()
+    if mode == 'all':
+        accuracy['all'] = calc_accuracy(p_class, gt_class, k)
+    else:
+        class_list = sorted(np.unique(gt_class))
+        for class_id in class_list:
+            class_inds = np.where(gt_class == class_id)
+            class_gt = gt_class[class_inds]
+            class_p = p_class[class_inds]
+            accuracy[class_id] = calc_accuracy(class_p, class_gt, k)
+    return accuracy
 
 
 def evaluate(pred_file, gt_file, k=(1, 5,)):
@@ -87,7 +100,10 @@ def evaluate(pred_file, gt_file, k=(1, 5,)):
     pred_class = pred_df.to_numpy()
     for k_val in k:
         accuracy = top_k_accuracy(pred_class, gt_class, k_val)
-        print(f'The top-{k_val} accuracy is {accuracy}')
+        print(f'The top-{k_val} average accuracy is {accuracy}')
+        class_accuracy = top_k_accuracy(pred_class, gt_class, k_val, mode='class')
+        for class_id in sorted(class_accuracy.keys()):
+            print(f'\t\t The top-{k_val} accuracy for class {class_id} is {class_accuracy[class_id]}')
 
 
 def main():

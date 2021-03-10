@@ -27,7 +27,7 @@ def image_loader(img_path, accimage=False):
 class EvalDataset(data.Dataset):
     """Characterizes a dataset for PyTorch"""
 
-    def __init__(self, data_file, accimage=False, transform=None, header=True):
+    def __init__(self, data_file, accimage=False, transform=None, header=True, index=False):
         """Initialization"""
         self.transform = transform
         self.accimage = accimage
@@ -38,7 +38,7 @@ class EvalDataset(data.Dataset):
             if ext == '.txt':
                 self.data_list = [line.strip('\n') for line in lines]
             else:
-                self.data_list = [line.strip('\n').split(',')[0] for line in lines]
+                self.data_list = [line.strip('\n').split(',')[0 + int(index)] for line in lines]
                 if header:
                     self.data_list = self.data_list[1:]
 
@@ -62,7 +62,7 @@ class EvalDataset(data.Dataset):
 
 
 class ModifiedImageFolder(datasets.DatasetFolder):
-    """Basically provides additional functionality to save images which could not be loaded"""
+    """Provides additional functionality to report images which could not be loaded"""
 
     def __init__(self, root, out_dir, transform=None, target_transform=None,
                  loader=image_loader, is_valid_file=None, stage=None):
