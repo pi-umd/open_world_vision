@@ -1,4 +1,5 @@
-# open_world_vision_private
+# Open World Image Classification Challenge
+
 
 ##Installation
 
