@@ -1,7 +1,17 @@
 # Open World Image Classification Challenge
 
 
-##Installation
+[**Webpage**](http://www.cs.cmu.edu/~shuk/open-world-vision.html "open world vision"): 
+
+
+![alt text](http://www.cs.cmu.edu/~shuk/open-world-vision_files/logo.png)
+
+
+## todo
+(1) notebook demo, (2) guideline/code for evaluation, (3) guideline for csv file generation, (4) logistics
+
+
+## Installation
 
 **Works with python >= 3.6**
 
