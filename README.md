@@ -1,7 +1,7 @@
 # Open World Image Classification Challenge
 
 
-[**Webpage**](http://www.cs.cmu.edu/~shuk/open-world-vision.html "open world vision"): 
+[**Workshop Webpage**](http://www.cs.cmu.edu/~shuk/open-world-vision.html "open world vision")
 
 
 ![alt text](http://www.cs.cmu.edu/~shuk/open-world-vision_files/logo.png)
