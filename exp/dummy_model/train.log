@@ -1,0 +1,9 @@
+./exp/dummy_model/train.log	cuda:0
+
+
+Epoch 1/90
+----------
+train
+	200/7569 loss:5.987, loss_CE:5.987, acc-full:0.01445
+	400/7569 loss:5.835, loss_CE:5.835, acc-full:0.01738
+	600/7569 loss:5.736, loss_CE:5.736, acc-full:0.02010
