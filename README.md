@@ -2,6 +2,7 @@
 
 
 [**Workshop Webpage**](http://www.cs.cmu.edu/~shuk/open-world-vision.html "open world vision")
+
 [**EvalAI Challenge Server**](https://eval.ai/web/challenges/challenge-page/1041/overview "open world vision")
 
 
